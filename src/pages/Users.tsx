@@ -29,6 +29,7 @@ import {
 import { Plus, Shield, User as UserIcon, Search } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { z } from "zod";
 
 const userSchema = z.object({
@@ -43,6 +44,7 @@ type UserProfile = {
   full_name: string | null;
   email: string | null;
   created_at: string;
+  is_active: boolean;
   role?: string;
 };
 
@@ -99,6 +101,54 @@ export default function Users() {
     );
 
     setUsers(usersWithRoles);
+  };
+
+  const toggleUserActive = async (userId: string, currentStatus: boolean) => {
+    const { error } = await supabase
+      .from("profiles")
+      .update({ is_active: !currentStatus })
+      .eq("id", userId);
+
+    if (error) {
+      toast.error("Failed to update user status");
+      return;
+    }
+
+    toast.success(`User ${!currentStatus ? "activated" : "deactivated"} successfully`);
+    fetchUsers();
+  };
+
+  const updateUserRole = async (userId: string, newRole: string) => {
+    // Use upsert to update or insert the role
+    const { error } = await supabase
+      .from("user_roles")
+      .upsert({ 
+        user_id: userId, 
+        role: newRole as "admin" | "user"
+      }, {
+        onConflict: "user_id,role"
+      });
+
+    if (error) {
+      // If upsert fails, try delete and insert approach
+      await supabase.from("user_roles").delete().eq("user_id", userId);
+      
+      const { error: insertError } = await supabase
+        .from("user_roles")
+        .insert([{ 
+          user_id: userId, 
+          role: newRole as "admin" | "user"
+        }]);
+
+      if (insertError) {
+        toast.error("Failed to update user role");
+        console.error(insertError);
+        return;
+      }
+    }
+
+    toast.success("User role updated successfully");
+    fetchUsers();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -278,13 +328,15 @@ export default function Users() {
               <TableHead>Name</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Role</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead>Joined</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {filteredUsers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center text-muted-foreground">
+                <TableCell colSpan={6} className="text-center text-muted-foreground">
                   No users found
                 </TableCell>
               </TableRow>
@@ -296,20 +348,48 @@ export default function Users() {
                   </TableCell>
                   <TableCell>{user.email}</TableCell>
                   <TableCell>
-                    <Badge
-                      variant={user.role === "admin" ? "default" : "secondary"}
-                      className="gap-1"
+                    <Select
+                      value={user.role}
+                      onValueChange={(value) => updateUserRole(user.id, value)}
                     >
-                      {user.role === "admin" ? (
-                        <Shield className="h-3 w-3" />
-                      ) : (
-                        <UserIcon className="h-3 w-3" />
-                      )}
-                      {user.role}
+                      <SelectTrigger className="w-[120px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="user">
+                          <div className="flex items-center gap-2">
+                            <UserIcon className="h-3 w-3" />
+                            User
+                          </div>
+                        </SelectItem>
+                        <SelectItem value="admin">
+                          <div className="flex items-center gap-2">
+                            <Shield className="h-3 w-3" />
+                            Admin
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={user.is_active ? "default" : "secondary"}>
+                      {user.is_active ? "Active" : "Inactive"}
                     </Badge>
                   </TableCell>
                   <TableCell>
                     {new Date(user.created_at).toLocaleDateString()}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <Label htmlFor={`active-${user.id}`} className="text-sm text-muted-foreground">
+                        {user.is_active ? "Active" : "Inactive"}
+                      </Label>
+                      <Switch
+                        id={`active-${user.id}`}
+                        checked={user.is_active}
+                        onCheckedChange={() => toggleUserActive(user.id, user.is_active)}
+                      />
+                    </div>
                   </TableCell>
                 </TableRow>
               ))

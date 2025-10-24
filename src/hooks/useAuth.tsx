@@ -57,6 +57,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchUserRole = async (userId: string) => {
     try {
+      // Check if user is active
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("is_active")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (profileError) throw profileError;
+
+      // If user is inactive, sign them out
+      if (profileData && !profileData.is_active) {
+        await supabase.auth.signOut();
+        setUserRole(null);
+        setUser(null);
+        setSession(null);
+        toast.error("Your account has been deactivated. Please contact an administrator.");
+        navigate("/auth");
+        return;
+      }
+
       const { data, error } = await supabase
         .from("user_roles")
         .select("role")
@@ -75,12 +95,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) throw error;
+
+      // Check if user is active
+      if (data.user) {
+        const { data: profileData, error: profileError } = await supabase
+          .from("profiles")
+          .select("is_active")
+          .eq("id", data.user.id)
+          .maybeSingle();
+
+        if (profileError) throw profileError;
+
+        if (profileData && !profileData.is_active) {
+          await supabase.auth.signOut();
+          toast.error("Your account has been deactivated. Please contact an administrator.");
+          throw new Error("Account deactivated");
+        }
+      }
+
       toast.success("Signed in successfully!");
       navigate("/dashboard");
     } catch (error: any) {
