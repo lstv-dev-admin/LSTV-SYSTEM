@@ -7,7 +7,8 @@ import {
   UserCog, 
   Settings, 
   LogOut,
-  Menu as MenuIcon
+  Menu as MenuIcon,
+  UserCircle
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -27,6 +28,7 @@ export function AppLayout({ children }: AppLayoutProps) {
     { icon: Users, label: "Employees", path: "/employees", adminOnly: true },
     { icon: UserCog, label: "Users", path: "/users", adminOnly: true },
     { icon: Settings, label: "Menu Config", path: "/menu-config", adminOnly: true },
+    { icon: UserCircle, label: "Profile", path: "/profile", adminOnly: false },
   ];
 
   const filteredMenuItems = menuItems.filter(item => !item.adminOnly || isAdmin);
