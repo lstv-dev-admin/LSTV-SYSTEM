@@ -1,7 +1,11 @@
--- Create enum for user roles
+-- =========================================================
+-- ENUM: User Roles
+-- =========================================================
 CREATE TYPE public.app_role AS ENUM ('admin', 'user');
 
--- Create profiles table
+-- =========================================================
+-- TABLE: Profiles
+-- =========================================================
 CREATE TABLE public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   full_name TEXT,
@@ -12,7 +16,9 @@ CREATE TABLE public.profiles (
 
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 
--- Create user_roles table (separate from profiles for security)
+-- =========================================================
+-- TABLE: User Roles
+-- =========================================================
 CREATE TABLE public.user_roles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
@@ -23,7 +29,9 @@ CREATE TABLE public.user_roles (
 
 ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY;
 
--- Create employees table
+-- =========================================================
+-- TABLE: Employees
+-- =========================================================
 CREATE TABLE public.employees (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   full_name TEXT NOT NULL,
@@ -38,7 +46,9 @@ CREATE TABLE public.employees (
 
 ALTER TABLE public.employees ENABLE ROW LEVEL SECURITY;
 
--- Create menu_items table for dynamic menu configuration
+-- =========================================================
+-- TABLE: Menu Items
+-- =========================================================
 CREATE TABLE public.menu_items (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title TEXT NOT NULL,
@@ -54,7 +64,9 @@ CREATE TABLE public.menu_items (
 
 ALTER TABLE public.menu_items ENABLE ROW LEVEL SECURITY;
 
--- Create security definer function to check user role
+-- =========================================================
+-- FUNCTION: Check if user has a specific role
+-- =========================================================
 CREATE OR REPLACE FUNCTION public.has_role(_user_id UUID, _role public.app_role)
 RETURNS BOOLEAN
 LANGUAGE sql
@@ -66,38 +78,58 @@ AS $$
     SELECT 1
     FROM public.user_roles
     WHERE user_id = _user_id AND role = _role
-  )
+  );
 $$;
 
--- Create function to handle new user signup
+-- =========================================================
+-- FUNCTION: Handle New User Signup (auto role assign)
+-- =========================================================
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
+DECLARE
+  user_count INT;
+  assigned_role public.app_role;
 BEGIN
+  -- Count total users
+  SELECT COUNT(*) INTO user_count FROM auth.users;
+
+  -- If first user → admin, else → user
+  IF user_count = 0 THEN
+    assigned_role := 'admin';
+  ELSE
+    assigned_role := 'user';
+  END IF;
+
+  -- Create profile
   INSERT INTO public.profiles (id, full_name, email)
   VALUES (
     new.id,
     COALESCE(new.raw_user_meta_data->>'full_name', ''),
     new.email
   );
-  
-  -- Assign default 'user' role to new users
+
+  -- Assign role
   INSERT INTO public.user_roles (user_id, role)
-  VALUES (new.id, 'user');
-  
+  VALUES (new.id, assigned_role);
+
   RETURN new;
 END;
 $$;
 
--- Create trigger for new user signup
+-- =========================================================
+-- TRIGGER: On new user signup
+-- =========================================================
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
--- Create function to update timestamps
+-- =========================================================
+-- FUNCTION: Update `updated_at` automatically
+-- =========================================================
 CREATE OR REPLACE FUNCTION public.update_updated_at_column()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -108,7 +140,9 @@ BEGIN
 END;
 $$;
 
--- Create triggers for updated_at
+-- =========================================================
+-- TRIGGERS: Auto-update timestamps
+-- =========================================================
 CREATE TRIGGER update_profiles_updated_at
   BEFORE UPDATE ON public.profiles
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
@@ -121,7 +155,11 @@ CREATE TRIGGER update_menu_items_updated_at
   BEFORE UPDATE ON public.menu_items
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
 
--- RLS Policies for profiles
+-- =========================================================
+-- RLS POLICIES
+-- =========================================================
+
+-- PROFILES
 CREATE POLICY "Users can view all profiles"
   ON public.profiles FOR SELECT
   TO authenticated
@@ -132,7 +170,7 @@ CREATE POLICY "Users can update own profile"
   TO authenticated
   USING (auth.uid() = id);
 
--- RLS Policies for user_roles
+-- USER ROLES
 CREATE POLICY "Admins can view all roles"
   ON public.user_roles FOR SELECT
   TO authenticated
@@ -153,7 +191,7 @@ CREATE POLICY "Admins can delete roles"
   TO authenticated
   USING (public.has_role(auth.uid(), 'admin'));
 
--- RLS Policies for employees
+-- EMPLOYEES
 CREATE POLICY "Authenticated users can view employees"
   ON public.employees FOR SELECT
   TO authenticated
@@ -174,7 +212,7 @@ CREATE POLICY "Admins can delete employees"
   TO authenticated
   USING (public.has_role(auth.uid(), 'admin'));
 
--- RLS Policies for menu_items
+-- MENU ITEMS
 CREATE POLICY "Authenticated users can view active menu items"
   ON public.menu_items FOR SELECT
   TO authenticated
@@ -195,7 +233,9 @@ CREATE POLICY "Admins can delete menu items"
   TO authenticated
   USING (public.has_role(auth.uid(), 'admin'));
 
--- Insert some default menu items
+-- =========================================================
+-- DEFAULT MENU ITEMS
+-- =========================================================
 INSERT INTO public.menu_items (title, description, icon, path, display_order, visible_to_roles) VALUES
   ('Dashboard', 'Overview and statistics', 'LayoutDashboard', '/dashboard', 1, ARRAY['user', 'admin']::public.app_role[]),
   ('Employees', 'Manage employees', 'Users', '/employees', 2, ARRAY['admin']::public.app_role[]),
