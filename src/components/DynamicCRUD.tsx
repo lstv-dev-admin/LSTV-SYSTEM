@@ -25,7 +25,7 @@ interface DynamicCrudProps {
   itemsPerPage?: number;
 }
 
-export const DynamicCRUD = ({ tableName, title, columns, itemsPerPage = 10 }: DynamicCrudProps) => {
+export const DynamicCrud = ({ tableName, title, columns, itemsPerPage = 10 }: DynamicCrudProps) => {
   const [items, setItems] = useState<any[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
