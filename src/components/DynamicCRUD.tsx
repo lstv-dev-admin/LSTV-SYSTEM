@@ -4,108 +4,108 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
-import { useToast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, FileDown, Printer, Upload } from "lucide-react";
-import * as XLSX from "xlsx";
+import { toast } from "sonner";
+import { Plus, Trash2, Edit, FileDown, FileUp, Printer } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import * as XLSX from "xlsx";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 
 interface Column {
   key: string;
   label: string;
+  type?: "text" | "number" | "date";
   editable?: boolean;
 }
 
-interface DynamicCRUDProps {
-  tableName: "area" | "award";
+interface DynamicCrudProps {
+  tableName: string;
   title: string;
   columns: Column[];
   itemsPerPage?: number;
 }
 
-export const DynamicCRUD = ({ tableName, title, columns, itemsPerPage = 10 }: DynamicCRUDProps) => {
+export const DynamicCrud = ({ tableName, title, columns, itemsPerPage = 10 }: DynamicCrudProps) => {
   const [items, setItems] = useState<any[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
-  const [formData, setFormData] = useState<Record<string, any>>({});
+  const [formData, setFormData] = useState<any>({});
   const [currentPage, setCurrentPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
-  const { toast } = useToast();
 
-  const editableColumns = columns.filter(col => col.editable !== false);
-
-  useEffect(() => {
-    fetchItems();
-  }, [currentPage]);
+  const totalPages = Math.ceil(totalItems / itemsPerPage);
 
   const fetchItems = async () => {
     const from = (currentPage - 1) * itemsPerPage;
     const to = from + itemsPerPage - 1;
 
     const { data, error, count } = await supabase
-      .from(tableName)
+      .from(tableName as any)
       .select("*", { count: "exact" })
-      .range(from, to)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .range(from, to);
 
     if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } else {
-      setItems(data || []);
-      setTotalItems(count || 0);
+      toast.error(`Failed to fetch ${title.toLowerCase()}`);
+      return;
     }
+
+    setItems(data || []);
+    setTotalItems(count || 0);
   };
+
+  useEffect(() => {
+    fetchItems();
+  }, [currentPage]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const editableData = columns
+      .filter(col => col.editable !== false && col.key !== "id")
+      .reduce((acc, col) => ({ ...acc, [col.key]: formData[col.key] }), {});
+
     if (editingItem) {
       const { error } = await supabase
         .from(tableName as any)
-        .update(formData as any)
+        .update(editableData)
         .eq("id", editingItem.id);
 
       if (error) {
-        toast({ title: "Error", description: error.message, variant: "destructive" });
-      } else {
-        toast({ title: "Success", description: `${title} updated successfully` });
-        setIsDialogOpen(false);
-        resetForm();
-        fetchItems();
+        toast.error(`Failed to update ${title.toLowerCase()}`);
+        return;
       }
+      toast.success(`${title} updated successfully`);
     } else {
-      const { error } = await supabase.from(tableName as any).insert([formData as any]);
+      const { error } = await supabase.from(tableName as any).insert([editableData]);
 
       if (error) {
-        toast({ title: "Error", description: error.message, variant: "destructive" });
-      } else {
-        toast({ title: "Success", description: `${title} created successfully` });
-        setIsDialogOpen(false);
-        resetForm();
-        fetchItems();
+        toast.error(`Failed to create ${title.toLowerCase()}`);
+        return;
       }
+      toast.success(`${title} created successfully`);
     }
+
+    setIsDialogOpen(false);
+    resetForm();
+    fetchItems();
   };
 
   const handleDelete = async (id: string) => {
     const { error } = await supabase.from(tableName as any).delete().eq("id", id);
 
     if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: "Success", description: `${title} deleted successfully` });
-      fetchItems();
+      toast.error(`Failed to delete ${title.toLowerCase()}`);
+      return;
     }
+
+    toast.success(`${title} deleted successfully`);
+    fetchItems();
   };
 
   const handleEdit = (item: any) => {
     setEditingItem(item);
-    const data: Record<string, any> = {};
-    editableColumns.forEach(col => {
-      data[col.key] = item[col.key];
-    });
-    setFormData(data);
+    setFormData(item);
     setIsDialogOpen(true);
   };
 
@@ -118,22 +118,32 @@ export const DynamicCRUD = ({ tableName, title, columns, itemsPerPage = 10 }: Dy
     const worksheet = XLSX.utils.json_to_sheet(items);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, title);
-    XLSX.writeFile(workbook, `${tableName}_${Date.now()}.xlsx`);
-    toast({ title: "Success", description: "Exported to Excel successfully" });
+    XLSX.writeFile(workbook, `${title}_${new Date().toISOString()}.xlsx`);
+    toast.success("Exported to Excel successfully");
   };
 
   const printPDF = () => {
     const doc = new jsPDF();
     doc.text(title, 14, 15);
-    
+
+    const tableData = items.map(item =>
+      columns.map(col => {
+        const value = item[col.key];
+        if (col.type === "date" && value) {
+          return new Date(value).toLocaleDateString();
+        }
+        return value || "";
+      })
+    );
+
     autoTable(doc, {
       head: [columns.map(col => col.label)],
-      body: items.map(item => columns.map(col => item[col.key] || "")),
+      body: tableData,
       startY: 20,
     });
-    
-    doc.save(`${tableName}_${Date.now()}.pdf`);
-    toast({ title: "Success", description: "PDF generated successfully" });
+
+    doc.save(`${title}_${new Date().toISOString()}.pdf`);
+    toast.success("PDF generated successfully");
   };
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -141,67 +151,75 @@ export const DynamicCRUD = ({ tableName, title, columns, itemsPerPage = 10 }: Dy
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = async (evt) => {
-      const data = evt.target?.result;
-      const workbook = XLSX.read(data, { type: "binary" });
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
+    reader.onload = async (event) => {
+      const data = new Uint8Array(event.target?.result as ArrayBuffer);
+      const workbook = XLSX.read(data, { type: "array" });
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
       const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
-      const { error } = await supabase.from(tableName as any).insert(jsonData as any);
+      const importData = jsonData.map((row: any) => {
+        const item: any = {};
+        columns.forEach(col => {
+          if (col.key !== "id" && col.editable !== false) {
+            item[col.key] = row[col.label] || row[col.key];
+          }
+        });
+        return item;
+      });
+
+      const { error } = await supabase.from(tableName as any).insert(importData);
 
       if (error) {
-        toast({ title: "Error", description: error.message, variant: "destructive" });
-      } else {
-        toast({ title: "Success", description: `Imported ${jsonData.length} records` });
-        fetchItems();
+        toast.error("Failed to import data");
+        return;
       }
+
+      toast.success(`Successfully imported ${importData.length} records`);
+      fetchItems();
     };
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
+    e.target.value = "";
   };
 
-  const totalPages = Math.ceil(totalItems / itemsPerPage);
-
   return (
-    <div className="container mx-auto p-6">
-      <div className="flex justify-between items-center mb-6">
+    <div className="container mx-auto py-6 space-y-4">
+      <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">{title}</h1>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={exportToExcel}>
-            <FileDown className="mr-2 h-4 w-4" /> Export Excel
+          <Button onClick={exportToExcel} variant="outline" size="sm">
+            <FileDown className="w-4 h-4 mr-2" />
+            Export Excel
           </Button>
-          <Button variant="outline" onClick={printPDF}>
-            <Printer className="mr-2 h-4 w-4" /> Print PDF
+          <Button onClick={printPDF} variant="outline" size="sm">
+            <Printer className="w-4 h-4 mr-2" />
+            Print PDF
           </Button>
-          <label htmlFor={`import-${tableName}`}>
-            <Button variant="outline" asChild>
+          <label>
+            <Button variant="outline" size="sm" asChild>
               <span>
-                <Upload className="mr-2 h-4 w-4" /> Import
+                <FileUp className="w-4 h-4 mr-2" />
+                Import
               </span>
             </Button>
+            <input type="file" accept=".xlsx,.xls" onChange={handleImport} className="hidden" />
           </label>
-          <input
-            id={`import-${tableName}`}
-            type="file"
-            accept=".xlsx,.xls"
-            className="hidden"
-            onChange={handleImport}
-          />
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <Dialog open={isDialogOpen} onOpenChange={(open) => { setIsDialogOpen(open); if (!open) resetForm(); }}>
             <DialogTrigger asChild>
-              <Button onClick={resetForm}>
-                <Plus className="mr-2 h-4 w-4" /> Add {title}
+              <Button size="sm">
+                <Plus className="w-4 h-4 mr-2" />
+                Add New
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>{editingItem ? "Edit" : "Add"} {title}</DialogTitle>
+                <DialogTitle>{editingItem ? "Edit" : "Add New"} {title}</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
-                {editableColumns.map(col => (
+                {columns.filter(col => col.editable !== false && col.key !== "id").map(col => (
                   <div key={col.key}>
                     <label className="text-sm font-medium">{col.label}</label>
                     <Input
+                      type={col.type || "text"}
                       value={formData[col.key] || ""}
                       onChange={(e) => setFormData({ ...formData, [col.key]: e.target.value })}
                       required
@@ -224,40 +242,46 @@ export const DynamicCRUD = ({ tableName, title, columns, itemsPerPage = 10 }: Dy
               {columns.map(col => (
                 <TableHead key={col.key}>{col.label}</TableHead>
               ))}
-              <TableHead>Actions</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {items.map((item) => (
-              <TableRow key={item.id}>
-                {columns.map(col => (
-                  <TableCell key={col.key}>
-                    {col.key.includes("_at") 
-                      ? new Date(item[col.key]).toLocaleString()
-                      : item[col.key]}
-                  </TableCell>
-                ))}
-                <TableCell>
-                  <div className="flex gap-2">
-                    <Button variant="ghost" size="icon" onClick={() => handleEdit(item)}>
-                      <Pencil className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+            {items.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={columns.length + 1} className="text-center">
+                  No records found
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              items.map((item) => (
+                <TableRow key={item.id}>
+                  {columns.map(col => (
+                    <TableCell key={col.key}>
+                      {col.type === "date" && item[col.key]
+                        ? new Date(item[col.key]).toLocaleDateString()
+                        : item[col.key]}
+                    </TableCell>
+                  ))}
+                  <TableCell className="text-right space-x-2">
+                    <Button variant="ghost" size="sm" onClick={() => handleEdit(item)}>
+                      <Edit className="w-4 h-4" />
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleDelete(item.id)}>
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </div>
 
       {totalPages > 1 && (
-        <Pagination className="mt-6">
+        <Pagination>
           <PaginationContent>
             <PaginationItem>
-              <PaginationPrevious 
+              <PaginationPrevious
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
               />
