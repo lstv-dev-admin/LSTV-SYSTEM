@@ -12,6 +12,8 @@ import Employees from "./pages/Employees";
 import Users from "./pages/Users";
 import MenuConfig from "./pages/MenuConfig";
 import Profile from "./pages/Profile";
+import Area from "./pages/Area";
+import Award from "./pages/Award";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -72,6 +74,26 @@ const App = () => (
                 <ProtectedRoute>
                   <AppLayout>
                     <Profile />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/area"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <Area />
+                  </AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/award"
+              element={
+                <ProtectedRoute>
+                  <AppLayout>
+                    <Award />
                   </AppLayout>
                 </ProtectedRoute>
               }
