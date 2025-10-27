@@ -100,6 +100,7 @@ export type Database = {
           icon: string | null
           id: string
           is_active: boolean
+          parent_id: string | null
           path: string
           title: string
           updated_at: string
@@ -112,6 +113,7 @@ export type Database = {
           icon?: string | null
           id?: string
           is_active?: boolean
+          parent_id?: string | null
           path: string
           title: string
           updated_at?: string
@@ -124,12 +126,21 @@ export type Database = {
           icon?: string | null
           id?: string
           is_active?: boolean
+          parent_id?: string | null
           path?: string
           title?: string
           updated_at?: string
           visible_to_roles?: Database["public"]["Enums"]["app_role"][]
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "menu_items_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "menu_items"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
