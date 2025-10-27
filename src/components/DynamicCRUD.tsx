@@ -19,14 +19,14 @@ interface Column {
   editable?: boolean;
 }
 
-interface DynamicCrudProps {
+interface DynamicCRUDProps {
   tableName: string;
   title: string;
   columns: Column[];
   itemsPerPage?: number;
 }
 
-export const DynamicCRUD = ({ tableName, title, columns, itemsPerPage = 10 }: DynamicCrudProps) => {
+export const DynamicCRUD = ({ tableName, title, columns, itemsPerPage = 10 }: DynamicCRUDProps) => {
   const [items, setItems] = useState<any[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any>(null);
