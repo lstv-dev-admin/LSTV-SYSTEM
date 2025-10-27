@@ -10,6 +10,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface Column {
   key: string;
@@ -32,10 +33,12 @@ export const DynamicCRUD = ({ tableName, title, columns, itemsPerPage = 10 }: Dy
   const [formData, setFormData] = useState<any>({});
   const [currentPage, setCurrentPage] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
+  const [loading, setLoading] = useState(false);
 
   const totalPages = Math.ceil(totalItems / itemsPerPage);
 
   const fetchItems = async () => {
+    setLoading(true);
     const from = (currentPage - 1) * itemsPerPage;
     const to = from + itemsPerPage - 1;
 
@@ -47,11 +50,13 @@ export const DynamicCRUD = ({ tableName, title, columns, itemsPerPage = 10 }: Dy
 
     if (error) {
       toast.error(`Failed to fetch ${title.toLowerCase()}`);
+      setLoading(false);
       return;
     }
 
     setItems(data || []);
     setTotalItems(count || 0);
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -246,7 +251,20 @@ export const DynamicCRUD = ({ tableName, title, columns, itemsPerPage = 10 }: Dy
             </TableRow>
           </TableHeader>
           <TableBody>
-            {items.length === 0 ? (
+            {loading ? (
+              Array.from({ length: 5 }).map((_, idx) => (
+                <TableRow key={idx}>
+                  {columns.map((col) => (
+                    <TableCell key={col.key}>
+                      <Skeleton className="h-4 w-full" />
+                    </TableCell>
+                  ))}
+                  <TableCell className="text-right">
+                    <Skeleton className="h-4 w-16 ml-auto" />
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : items.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={columns.length + 1} className="text-center">
                   No records found

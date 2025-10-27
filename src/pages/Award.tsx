@@ -1,8 +1,8 @@
-import { DynamicCrud } from "@/components/DynamicCRUD";
+import { DynamicCRUD } from "@/components/DynamicCRUD";
 
 const Award = () => {
   return (
-    <DynamicCrud
+    <DynamicCRUD
       tableName="award"
       title="Award"
       columns={[
