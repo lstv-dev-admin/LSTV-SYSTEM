@@ -1,4 +1,4 @@
-import { DynamicCRUD } from "@/components/DynamicCRUD";
+import { DynamicCRUD } from "@/components/DynamicCrud";
 
 const Area = () => {
   return (

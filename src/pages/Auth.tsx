@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 import { z } from "zod";
+import LoginForm from "@/components/Forms/Auth/LoginForm";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -102,7 +103,13 @@ export default function Auth() {
               <TabsTrigger value="signup">Sign Up</TabsTrigger>
             </TabsList>
 
+            {/* login start */}
+
             <TabsContent value="login">
+                <LoginForm />
+            </TabsContent>
+
+            {/* <TabsContent value="login">
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="login-email">Email</Label>
@@ -139,7 +146,9 @@ export default function Auth() {
                   {loading ? "Signing in..." : "Sign In"}
                 </Button>
               </form>
-            </TabsContent>
+            </TabsContent> */}
+
+            {/* login end */}
 
             <TabsContent value="signup">
               <form onSubmit={handleSignup} className="space-y-4">
