@@ -1,8 +1,8 @@
-import { DynamicCRUD } from "@/components/DynamicCRUD";
+import { DynamicCrud } from "@/components/DynamicCRUD";
 
 const Area = () => {
   return (
-    <DynamicCRUD
+    <DynamicCrud
       tableName="area"
       title="Area"
       columns={[

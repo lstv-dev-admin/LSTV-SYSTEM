@@ -10,8 +10,10 @@ import {
   Menu as MenuIcon,
   UserCircle
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import * as LucideIcons from "lucide-react";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -22,16 +24,39 @@ export function AppLayout({ children }: AppLayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [menuItems, setMenuItems] = useState<any[]>([]);
 
-  const menuItems = [
-    { icon: LayoutDashboard, label: "Dashboard", path: "/dashboard", adminOnly: false },
-    { icon: Users, label: "Employees", path: "/employees", adminOnly: true },
-    { icon: UserCog, label: "Users", path: "/users", adminOnly: true },
-    { icon: Settings, label: "Menu Config", path: "/menu-config", adminOnly: true },
-    { icon: UserCircle, label: "Profile", path: "/profile", adminOnly: false },
-  ];
+  useEffect(() => {
+    const fetchMenuItems = async () => {
+      const { data, error } = await supabase
+        .from('menu_items')
+        .select('*')
+        .eq('is_active', true)
+        .order('display_order');
 
-  const filteredMenuItems = menuItems.filter(item => !item.adminOnly || isAdmin);
+      if (error) {
+        console.error('Error fetching menu items:', error);
+        return;
+      }
+
+      if (data) {
+        setMenuItems(data);
+      }
+    };
+
+    fetchMenuItems();
+  }, []);
+
+  const userRole = isAdmin ? 'admin' : 'user';
+  const filteredMenuItems = menuItems.filter(item => 
+    item.visible_to_roles?.includes(userRole)
+  );
+
+  const getIconComponent = (iconName: string | null) => {
+    if (!iconName) return LayoutDashboard;
+    const Icon = (LucideIcons as any)[iconName];
+    return Icon || LayoutDashboard;
+  };
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -57,11 +82,11 @@ export function AppLayout({ children }: AppLayoutProps) {
           {/* Navigation */}
           <nav className="flex-1 space-y-1 p-2">
             {filteredMenuItems.map((item) => {
-              const Icon = item.icon;
+              const Icon = getIconComponent(item.icon);
               const isActive = location.pathname === item.path;
               return (
                 <button
-                  key={item.path}
+                  key={item.id}
                   onClick={() => navigate(item.path)}
                   className={cn(
                     "flex w-full items-center gap-3 rounded-lg px-3 py-3 text-sm font-medium transition-all",
@@ -70,10 +95,10 @@ export function AppLayout({ children }: AppLayoutProps) {
                       : "text-sidebar-foreground hover:bg-sidebar-accent/50",
                     !sidebarOpen && "justify-center"
                   )}
-                  title={!sidebarOpen ? item.label : undefined}
+                  title={!sidebarOpen ? item.title : undefined}
                 >
                   <Icon className="h-5 w-5 flex-shrink-0" />
-                  {sidebarOpen && <span>{item.label}</span>}
+                  {sidebarOpen && <span>{item.title}</span>}
                 </button>
               );
             })}
